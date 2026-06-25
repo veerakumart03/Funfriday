@@ -1,0 +1,61 @@
+name: Extract Uploaded Zip
+
+on:
+  push:
+    paths:
+      - "*.zip"
+      - "**/*.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract-zip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract zip files and delete archives
+        shell: bash
+        run: |
+          shopt -s nullglob globstar
+
+          zip_files=( *.zip **/*.zip )
+
+          if [ ${#zip_files[@]} -eq 0 ]; then
+            echo "No zip files found."
+            exit 0
+          fi
+
+          for zip_file in "${zip_files[@]}"; do
+            if [ ! -f "$zip_file" ]; then
+              continue
+            fi
+
+            target_dir="$(dirname "$zip_file")"
+
+            echo "Extracting $zip_file into $target_dir"
+            unzip -o "$zip_file" -d "$target_dir"
+            rm "$zip_file"
+          done
+
+      - name: Commit extracted files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No staged changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Extract uploaded zip file"
+          git push
